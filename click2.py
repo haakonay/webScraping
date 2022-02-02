@@ -12,6 +12,7 @@ from selenium.common.exceptions import TimeoutException
 from selectorlib import Extractor
 import time  # For providing the user with time spent and for testing
 import urllib.request
+import os
 
 # Far tak i alle kommuner fra SNL.no (her kommuner.txt fil)
 # url_kommuner = "https://snl.no/kommuner_i_Norge"
@@ -114,19 +115,36 @@ kommuner_utenGov = ['Halden', 'Moss', 'Fredrikstad', 'Drammen', 'Kongsberg', 'Ri
                     'Unjarga', 'Batsfjord', 'Sor-Varanger']
 
 url = "https://opengov.360online.com/Meetings/"
-hardkodet = ['moskenes']
-driver = webdriver.Chrome(ChromeDriverManager().install())
+hardkodet = ['gjovik']
+options = webdriver.ChromeOptions()
+options.add_experimental_option('prefs', {
+    "download.default_directory": r'C:\Users\haako\PycharmProjects\scrapeKBN', #Change default directory for downloads
+    "download.prompt_for_download": False, #To auto download the file
+    "download.directory_upgrade": True,
+    "plugins.always_open_pdf_externally": True #It will not show PDF directly in chrome
+})
+driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+#driver = webdriver.Chrome(options=options)
 count = 0
 ant_kommuner = 0
 
+def tiny_file_rename(newname, folder_of_download):
+    filename = max([f for f in os.listdir(folder_of_download)], key=lambda xa :   os.path.getctime(os.path.join(folder_of_download,xa)))
+    if '.part' in filename:
+        time.sleep(1)
+        os.rename(os.path.join(folder_of_download, filename), os.path.join(folder_of_download, newname))
+    else:
+        os.rename(os.path.join(folder_of_download, filename),os.path.join(folder_of_download,newname))
+
 def download_pdf(pdf):
-        pdf = str(pdf.get('href'))
         try:
             page = requests.get(pdf)
         except Exception:
             return 1
         # Downloading PDF
+        print(pdf)
         response = urllib.request.urlopen(pdf)
+        print(response)
         file = open(i + "-Møteprotokoll-Kommunestyret-2021" + ".pdf", "wb")
         file.write(response.read())
         file.close()
@@ -140,9 +158,14 @@ def finn_protokoll():
     page = requests.get(driver.current_url)
     soup = BeautifulSoup(page.text, features="html.parser")
     pdf = soup.find("a", {'title': re.compile(r'Protokoll - Kommunestyret - \d+.12.2021')})
-    print(pdf)
+    title = str(pdf.get('title'))
     if pdf:
-        download_pdf(pdf)
+        button = driver.find_element(By.XPATH, "//a[@title='" + title + "']")
+        driver.execute_script("arguments[0].click();", button)
+        tiny_file_rename(i +".pdf",r'C:\Users\haako\PycharmProjects\scrapeKBN')
+        return 1
+    else:
+        return 2
 
 def fjorårets_møteplan(i,url):
     if not url.startswith("http"):
@@ -156,14 +179,12 @@ def fjorårets_møteplan(i,url):
     try:
         button = driver.find_element(By.LINK_TEXT, "Vis forrige år")
         driver.execute_script("arguments[0].click();", button)
-        print("fant plan uten caps")
         return 1
     except Exception:
         pass
     try:
         button = driver.find_element(By.LINK_TEXT, "Vis Forrige År")
         driver.execute_script("arguments[0].click();", button)
-        print("Fant plan med CAPS")
         return 1
     except Exception:
         return 0
@@ -173,6 +194,7 @@ def fjorårets_møteplan(i,url):
 # Går gjennom en og en kommune
 start = time.time()
 for i in hardkodet:
+    godkjent = False
     new_url = "https://www." + i + ".kommune.no" # Noen få kommuner følger ikke dette standard oppsettet
     try:
         page = requests.get(new_url)
@@ -180,25 +202,35 @@ for i in hardkodet:
         continue
     soup_page = BeautifulSoup(page.text, features="html.parser")
     runde = 0
-    for moteplan_url in soup_page.find_all('a', href= re.compile("mote")):
+    for moteplan_url in soup_page.find_all('a', href= re.compile("politikk")):
         runde += 1
         href = str(moteplan_url.get('href'))
-        if fjorårets_møteplan(i, href):
-            count += 1
-            finn_protokoll()
-            # Laster ned pdf funksjon
+        if not href.startswith("http"):
+            href = "https://www." + i + ".kommune.no" + href
+        try:
+            page = requests.get(href)
+        except Exception:  # Hvis nettsiden ikke er nedlastbar - neste kommune
+            continue
+        soup_politikk = BeautifulSoup(page.text, features="html.parser")
+        count_mote_2 = 0
+        for moter in soup_politikk('a', href= re.compile("mote")):
+            count_mote_2 += 1
+            moter = str(moter.get('href'))
+            if fjorårets_møteplan(i, moter):
+                count += 1
+                status = finn_protokoll()
+                print("forsøker å finne og laste ned")
+                if status == 1:
+                    godkjent = True
+                    # Laster ned pdf funksjon
+                    break
+                elif status == 2:
+                    continue
+            elif count_mote_2 == 10:
+                break
+        if godkjent:
             break
-        else:
-            runde2 = 0
-            for moteplan_2 in moteplan_url.find_all('a', href = re.compile("mote")):
-                runde2 += 1
-                href = str(moteplan_2.get('href'))
-                if fjorårets_møteplan(i,href):
-                    finn_protokoll()
-                    break
-                if runde2 == 5:
-                    break
-        if runde == 5:
+        elif runde == 10:
             break
 
 stop = time.time()

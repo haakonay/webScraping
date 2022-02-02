@@ -1,25 +1,21 @@
 ########## IMPORTS ##########
-import requests  # Requests for requesting and downloading URLs
-from bs4 import BeautifulSoup, Comment  # For parsing downloaded URLs
-import re  # Regular Expressions
-from selenium import webdriver
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import TimeoutException
-from selectorlib import Extractor
-import time  # For providing the user with time spent and for testing
+import requests                          # Requests for requesting and downloading URLs
+from bs4 import BeautifulSoup, Comment   # For parsing downloaded URLs
+import re                                # Regular Expressions
 import urllib.request
+from collections import Counter          # For returning most common words in dictionary
+import validators                        # Validating URLs provided by user
+from validators import ValidationFailure # -
+import time                              # For providing the user with time spent and for testing
+
 
 # Far tak i alle kommuner fra SNL.no (her kommuner.txt fil)
 # url_kommuner = "https://snl.no/kommuner_i_Norge"
-# f = open("kommuner.txt",'r', encoding="utf8")
-# ft = f.read()
-# kommuner = re.findall(r'(?:\d+\t)(\w+-?\w+)', ft)
+#f = open("kommuner.txt",'r', encoding="utf8")
+#ft = f.read()
+#kommuner = re.findall(r'(?:\d+\t)(\w+-?\w+)', ft)
 
-kommuner = ['Halden', 'Moss', 'Sarpsborg', 'Fredrikstad',
+kommuner = ['Halden','Moss', 'Sarpsborg', 'Fredrikstad',
             'Drammen', 'Kongsberg', 'Ringerike', 'Hvaler',
             'Aremark', 'Marker', 'Indre', 'Skiptvet', 'Rakkestad',
             'Rade', 'Valer-of', 'Vestby', 'Nordre', 'as', 'Frogn', 'Nesodden',
@@ -74,10 +70,8 @@ kommuner_utenGov = ['Halden', 'Moss', 'Fredrikstad', 'Drammen', 'Kongsberg', 'Ri
                     'Valer-of', 'Vestby', 'Nordre', 'as', 'Frogn', 'Nesodden', 'Baerum', 'Asker',
                     'Aurskog-Holand', 'Raelingen', 'Enebakk', 'Lorenskog', 'Gjerdrum', 'Ullensaker',
                     'Nes', 'Eidsvoll', 'Nannestad', 'Hurdal', 'Hole', 'Fla', 'Nesbyen', 'Gol', 'Hemsedal',
-                    'al', 'Hol', 'Sigdal', 'Krodsherad', 'Modum', 'ovre', 'Lier', 'Flesberg', 'Rollag', 'Nore',
-                    'Jevnaker',
-                    'Lunner', 'Oslo', 'Kongsvinger', 'Hamar', 'Lillehammer', 'Gjovik', 'Ringsaker', 'Loten', 'Stange',
-                    'Nord-Odal',
+                    'al', 'Hol', 'Sigdal', 'Krodsherad', 'Modum', 'ovre', 'Lier', 'Flesberg', 'Rollag', 'Nore', 'Jevnaker',
+                    'Lunner', 'Oslo', 'Kongsvinger', 'Hamar', 'Lillehammer', 'Gjovik', 'Ringsaker', 'Loten', 'Stange', 'Nord-Odal',
                     'Sor-Odal', 'Eidskog', 'Grue', 'asnes', 'Valer', 'Elverum', 'Trysil', 'amot', 'Stor-Elvdal',
                     'Rendalen', 'Engerdal', 'Tolga', 'Tynset', 'Alvdal', 'Folldal', 'Os', 'Dovre', 'Lesja',
                     'Skjak', 'Lom', 'Vaga', 'Nord-Fron', 'Sel', 'Sor-Fron', 'Ringebu', 'oyer', 'Gausdal',
@@ -114,94 +108,73 @@ kommuner_utenGov = ['Halden', 'Moss', 'Fredrikstad', 'Drammen', 'Kongsberg', 'Ri
                     'Unjarga', 'Batsfjord', 'Sor-Varanger']
 
 url = "https://opengov.360online.com/Meetings/"
-hardkodet = ['moskenes']
-driver = webdriver.Chrome(ChromeDriverManager().install())
+url_innsyn = ".kommune.no/innsyn.aspx?response=moteplan&MId1=435&scripturi=/innsyn.aspx&skin=infolink&fradato=2021-01-01T00:00:00"
+
+count_innsyn = 0
 count = 0
-ant_kommuner = 0
+fant_moteplan = 0
+fant_kommunestyret = 0
 
-def download_pdf(pdf):
-        pdf = str(pdf.get('href'))
-        try:
-            page = requests.get(pdf)
-        except Exception:
-            return 1
-        # Downloading PDF
-        response = urllib.request.urlopen(pdf)
-        file = open(i + "-Møteprotokoll-Kommunestyret-2021" + ".pdf", "wb")
-        file.write(response.read())
-        file.close()
-
-def finn_protokoll():
+# INNSYN
+for i in kommuner_utenGov:
+    new_url = "https://www." + i + url_innsyn
     try:
-        button = driver.find_element(By.LINK_TEXT, "Kommunestyret")
+        downloaded_url = requests.get(new_url)
     except Exception:
-        return 0
-    driver.execute_script("arguments[0].click();", button)
-    page = requests.get(driver.current_url)
-    soup = BeautifulSoup(page.text, features="html.parser")
-    pdf = soup.find("a", {'title': re.compile(r'Protokoll - Kommunestyret - \d+.12.2021')})
-    print(pdf)
-    if pdf:
-        download_pdf(pdf)
-
-def fjorårets_møteplan(i,url):
-    if not url.startswith("http"):
-        url = "https://www."+i+".kommune.no"+url
-    try:
-        driver.get(url)
-    except Exception:
-        return 0
-
-    driver.maximize_window()
-    try:
-        button = driver.find_element(By.LINK_TEXT, "Vis forrige år")
-        driver.execute_script("arguments[0].click();", button)
-        print("fant plan uten caps")
-        return 1
-    except Exception:
-        pass
-    try:
-        button = driver.find_element(By.LINK_TEXT, "Vis Forrige År")
-        driver.execute_script("arguments[0].click();", button)
-        print("Fant plan med CAPS")
-        return 1
-    except Exception:
-        return 0
-
-
-
-# Går gjennom en og en kommune
-start = time.time()
-for i in hardkodet:
-    new_url = "https://www." + i + ".kommune.no" # Noen få kommuner følger ikke dette standard oppsettet
-    try:
-        page = requests.get(new_url)
-    except Exception: # Hvis nettsiden ikke er nedlastbar - neste kommune
         continue
-    soup_page = BeautifulSoup(page.text, features="html.parser")
-    runde = 0
-    for moteplan_url in soup_page.find_all('a', href= re.compile("mote")):
-        runde += 1
-        href = str(moteplan_url.get('href'))
-        if fjorårets_møteplan(i, href):
-            count += 1
-            finn_protokoll()
-            # Laster ned pdf funksjon
-            break
-        else:
-            runde2 = 0
-            for moteplan_2 in moteplan_url.find_all('a', href = re.compile("mote")):
-                runde2 += 1
-                href = str(moteplan_2.get('href'))
-                if fjorårets_møteplan(i,href):
-                    finn_protokoll()
+    for j in range(4, 9,4): # De fleste møteplaner er å finne i de tidlig indekserte sidene
+        url = "https://www."+i+".kommune.no/innsyn.aspx?response=moteplan&MId1=" \
+              + str(j) + "&scripturi=/innsyn.aspx&skin=infolink&fradato=2021-01-01T00:00:00"
+        page = requests.get(url)
+        soup_page = BeautifulSoup(page.text, features="html.parser")
+        pretty_soup = soup_page.prettify()
+        if re.search(r'Siden finnes ikke', pretty_soup): # Hvis siden ikke finnes sjekk neste indeks
+            print("Siden finnes ikke")
+            continue
+        if re.search(r'Møteplan', pretty_soup): # Hvis møteplan ble funnet
+            print("Fant møteplan")
+            fant_moteplan +=1
+            if soup_page.find("a", href=True, text="Kommunestyret"):
+                a_1 = soup_page.find("a", href=True, text="Kommunestyret")
+                href = str(a_1.get('href'))
+                final_url = "https://www."+i+".kommune.no" + href +"PF=PI"
+                fant_kommunestyret +=1
+                print(final_url)
+                try:
+                    final_page = requests.get(final_url) # Dersom urlen til møteplan er OK: Last ned
+                except Exception:
+                    continue
+                final_soup_page = BeautifulSoup(final_page.text, features="html.parser")
+                pdf = final_soup_page.find("a", {'title': re.compile(r'Protokoll - Kommunestyret - \d+.12.2021')})
+                if pdf:
+                    pdf = str(pdf.get('href'))
+                    # Downloading PDF
+                    response = urllib.request.urlopen(pdf)
+                    file = open(i+"-Møteprotokoll-Kommunestyret-2021"+ ".pdf", "wb")
+                    file.write(response.read())
+                    file.close()
+                    print(i)
+                    count +=1
                     break
-                if runde2 == 5:
-                    break
-        if runde == 5:
-            break
 
-stop = time.time()
+print(fant_moteplan)
+print(fant_kommunestyret)
 
-print(stop-start)
-print(count)
+
+# 360 GOV
+""""
+for i in kommuner:
+    new_url = url+i
+    downloaded_page = requests.get(new_url)
+    if downloaded_page.status_code == 200:
+        kommuner_utenGov.remove(i)
+print(kommuner_utenGov)
+"""
+
+
+
+
+
+
+
+

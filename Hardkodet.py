@@ -11,7 +11,6 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import TimeoutException
 from selectorlib import Extractor
 import time  # For providing the user with time spent and for testing
-import urllib.request
 
 # Far tak i alle kommuner fra SNL.no (her kommuner.txt fil)
 # url_kommuner = "https://snl.no/kommuner_i_Norge"
@@ -114,94 +113,58 @@ kommuner_utenGov = ['Halden', 'Moss', 'Fredrikstad', 'Drammen', 'Kongsberg', 'Ri
                     'Unjarga', 'Batsfjord', 'Sor-Varanger']
 
 url = "https://opengov.360online.com/Meetings/"
-hardkodet = ['moskenes']
+hardkodet = ['gjovik']
 driver = webdriver.Chrome(ChromeDriverManager().install())
 count = 0
 ant_kommuner = 0
 
-def download_pdf(pdf):
-        pdf = str(pdf.get('href'))
-        try:
-            page = requests.get(pdf)
-        except Exception:
-            return 1
-        # Downloading PDF
-        response = urllib.request.urlopen(pdf)
-        file = open(i + "-Møteprotokoll-Kommunestyret-2021" + ".pdf", "wb")
-        file.write(response.read())
-        file.close()
-
-def finn_protokoll():
-    try:
-        button = driver.find_element(By.LINK_TEXT, "Kommunestyret")
-    except Exception:
-        return 0
-    driver.execute_script("arguments[0].click();", button)
-    page = requests.get(driver.current_url)
-    soup = BeautifulSoup(page.text, features="html.parser")
-    pdf = soup.find("a", {'title': re.compile(r'Protokoll - Kommunestyret - \d+.12.2021')})
-    print(pdf)
-    if pdf:
-        download_pdf(pdf)
-
 def fjorårets_møteplan(i,url):
-    if not url.startswith("http"):
+    if not url.startswith("https"):
         url = "https://www."+i+".kommune.no"+url
+        print(url)
     try:
         driver.get(url)
     except Exception:
         return 0
 
     driver.maximize_window()
+    time.sleep(2)
     try:
         button = driver.find_element(By.LINK_TEXT, "Vis forrige år")
-        driver.execute_script("arguments[0].click();", button)
-        print("fant plan uten caps")
-        return 1
-    except Exception:
-        pass
-    try:
-        button = driver.find_element(By.LINK_TEXT, "Vis Forrige År")
-        driver.execute_script("arguments[0].click();", button)
-        print("Fant plan med CAPS")
-        return 1
     except Exception:
         return 0
-
-
+    button.click()
+    return 1
 
 # Går gjennom en og en kommune
-start = time.time()
-for i in hardkodet:
+for i in kommuner_utenGov:
     new_url = "https://www." + i + ".kommune.no" # Noen få kommuner følger ikke dette standard oppsettet
     try:
-        page = requests.get(new_url)
+        downloaded_url = requests.get(new_url)
     except Exception: # Hvis nettsiden ikke er nedlastbar - neste kommune
         continue
+    page = requests.get(new_url)
     soup_page = BeautifulSoup(page.text, features="html.parser")
-    runde = 0
-    for moteplan_url in soup_page.find_all('a', href= re.compile("mote")):
-        runde += 1
+    pretty_soup = soup_page.prettify()
+    for moteplan_url in soup_page.find_all('span', text= re.compile("møte")):
+        ant_kommuner += 1
+        break
         href = str(moteplan_url.get('href'))
-        if fjorårets_møteplan(i, href):
-            count += 1
-            finn_protokoll()
-            # Laster ned pdf funksjon
-            break
-        else:
-            runde2 = 0
-            for moteplan_2 in moteplan_url.find_all('a', href = re.compile("mote")):
-                runde2 += 1
-                href = str(moteplan_2.get('href'))
-                if fjorårets_møteplan(i,href):
-                    finn_protokoll()
-                    break
-                if runde2 == 5:
-                    break
-        if runde == 5:
-            break
+        if href=="None":
+                href = str(moteplan_url.find_parent('a').get('href'))
+                if href =="None":
+                    print("Enda en ny løsning") # Hvis man heller ikke fant lenke til møteplan her
+                else: # Når man har kommet til møteplan på nyåret (gitt at forige år er fjoråret)
+                    print(href)
+                    if fjorårets_møteplan(i, href):
+                        print(driver)
+                        count +=1
+                        break
 
-stop = time.time()
 
-print(stop-start)
 print(count)
+print(ant_kommuner)
+
+            # Gå videre fra her og begynne på funksjoner som tar for seg andre caser
+
+
