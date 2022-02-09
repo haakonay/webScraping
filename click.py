@@ -121,6 +121,7 @@ ant_kommuner = 0
 
 def download_pdf(pdf):
         pdf = str(pdf.get('href'))
+        print(pdf)
         try:
             page = requests.get(pdf)
         except Exception:
@@ -172,7 +173,7 @@ def fjorårets_møteplan(i,url):
 
 # Går gjennom en og en kommune
 start = time.time()
-for i in hardkodet:
+for i in kommuner_utenGov:
     new_url = "https://www." + i + ".kommune.no" # Noen få kommuner følger ikke dette standard oppsettet
     try:
         page = requests.get(new_url)

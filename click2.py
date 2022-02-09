@@ -115,10 +115,10 @@ kommuner_utenGov = ['Halden', 'Moss', 'Fredrikstad', 'Drammen', 'Kongsberg', 'Ri
                     'Unjarga', 'Batsfjord', 'Sor-Varanger']
 
 url = "https://opengov.360online.com/Meetings/"
-hardkodet = ['gjovik']
+hardkodet = ['gjovik','moss']
 options = webdriver.ChromeOptions()
 options.add_experimental_option('prefs', {
-    "download.default_directory": r'C:\Users\haako\PycharmProjects\scrapeKBN', #Change default directory for downloads
+    "download.default_directory": r'C:\Users\haako\PycharmProjects\kbn\pdfer', #Change default directory for downloads
     "download.prompt_for_download": False, #To auto download the file
     "download.directory_upgrade": True,
     "plugins.always_open_pdf_externally": True #It will not show PDF directly in chrome
@@ -158,13 +158,16 @@ def finn_protokoll():
     page = requests.get(driver.current_url)
     soup = BeautifulSoup(page.text, features="html.parser")
     pdf = soup.find("a", {'title': re.compile(r'Protokoll - Kommunestyret - \d+.12.2021')})
-    title = str(pdf.get('title'))
     if pdf:
+        title = str(pdf.get('title'))
         button = driver.find_element(By.XPATH, "//a[@title='" + title + "']")
         driver.execute_script("arguments[0].click();", button)
-        tiny_file_rename(i +".pdf",r'C:\Users\haako\PycharmProjects\scrapeKBN')
+        time.sleep(1)
+        tiny_file_rename(i +".pdf", r'C:\Users\haako\PycharmProjects\kbn\pdfer')
+        print(i, "-ok-", page)
         return 1
     else:
+        print(i, "-ikke ok-", page)
         return 2
 
 def fjorårets_møteplan(i,url):
@@ -193,7 +196,7 @@ def fjorårets_møteplan(i,url):
 
 # Går gjennom en og en kommune
 start = time.time()
-for i in hardkodet:
+for i in kommuner_utenGov:
     godkjent = False
     new_url = "https://www." + i + ".kommune.no" # Noen få kommuner følger ikke dette standard oppsettet
     try:
