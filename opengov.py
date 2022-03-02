@@ -4,15 +4,11 @@ import re  # Regular Expressions
 import urllib.request # Trengs for å laste ned pdf
 import os # Sjekker om fil allerede eksisterer
 
-# Hvis følgende kommuner fortsetter å bruke opengov som løsning neste år, bytter man ut første linje i "for-loopen"
-# med "2022".
-# Se nederst i scriptet for ny gjennomgang av kommuner som bruker opengov
 
 url_gov = "https://opengov.360online.com"
 url = "https://opengov.360online.com/Meetings/"
 
-# Kommuner som bruker opengov
-# Funnet ved å loope gjennom alle 366 kommuner og appende til følgende liste der opengov møtte oss med kode 200
+# Municipalities that use opengov
 kommuner_medGov = ['LILLESTROMKOM', 'Nittedal', 'Gran',
                    'Skien', 'Siljan', 'Bamble', 'Kragero', 'Drangedal',
                    'Lindesnes', 'Farsund', 'Flekkefjord', 'Vennesla',
@@ -24,27 +20,31 @@ kommuner_medGov = ['LILLESTROMKOM', 'Nittedal', 'Gran',
                    'Hemnes', 'Vardo', 'Gratangen']
 
 for i in kommuner_medGov:
-    new_url = url+i+"/Meetings?month=12&year=2021" # Sikter inn måned og år og får opp alle dokumenter
-    page = requests.get(new_url) # Henter kildekode
+    new_url = url+i+"/Meetings?month=12&year=2021" # Narrows down month and year
+    try:
+        page = requests.get(new_url)  # Gathering source code
+    except Exception:
+        print("Feil med lenken")
+        continue
     soup_page = BeautifulSoup(page.text, features="html.parser") # bs4
     for j in soup_page.find_all('span', text=re.compile("Kommunestyre|kommunestyre|KOMMUNESTYRE")): # CSS selector
-        a = j.parent.parent # Henter grandparent for å finne hyper ref
+        a = j.parent.parent # Getting grandparent to grab href
         href = str(a.get('href'))
         lenke_til_protkoll = url_gov + href
         page = requests.get(lenke_til_protkoll)
         soup_page = BeautifulSoup(page.text, features="html.parser")
-        for k in soup_page.find_all("li", {'title': re.compile(r'Protokoll|protokoll')}): # Alt som har følgende ord i
-            for href in k.find_all('a', href=True): # Bekrefter at det finnes en href
+        for k in soup_page.find_all("li", {'title': re.compile(r'Protokoll|protokoll')}): # Looking for words
+            for href in k.find_all('a', href=True): # Confirming that the found href contains href
                 pdf_link = str(href.get('href'))
                 pdf = url_gov+pdf_link
                 response = urllib.request.urlopen(pdf)
                 name = i+"-Møteprotokoll-Kommunestyret-2021.pdf"
-                if not os.path.isfile(name):    # Kun hvis navn ikke allerede eksisterer
-                    file = open(name,"wb")      # Hvis det ligger to protokoller fra desember
-                    file.write(response.read()) # vil nyeste og siste være gjeldende
+                if not os.path.isfile(name):    # If name do not exist
+                    file = open(name,"wb")      # If there are 2 protocols from december, then only the newest will be
+                    file.write(response.read())
                     file.close()
 
-# Sjekker respons på kommuner og deres tilkntyning til opengov
+# All municipalities, unfiltered
 """"                    
 kommuner = ['Halden','Moss', 'Sarpsborg', 'Fredrikstad',
             'Drammen', 'Kongsberg', 'Ringerike', 'Hvaler',
@@ -95,6 +95,8 @@ kommuner = ['Halden','Moss', 'Sarpsborg', 'Fredrikstad',
             'Skjervoy', 'Nordreisa', 'Kvaenangen', 'Guovdageaidnu', 'Loppa', 'Hasvik', 'Masoy', 'Nordkapp',
             'Porsanger', 'Karasjohka', 'Lebesby', 'Gamvik', 'Berlevag',
             'Deatnu', 'Unjarga', 'Batsfjord', 'Sor-Varanger']
+
+# Loop for filtering municipalities that use opengov            
 kommuner_med_gov = []
 url = "https://opengov.360online.com/Meetings/"
 for i in kommuner:

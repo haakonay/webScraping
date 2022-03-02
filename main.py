@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup, Comment   # For parsing downloaded URLs
 import re                                # Regular Expressions
 import urllib.request
 from collections import Counter          # For returning most common words in dictionary
-import validators                        # Validating URLs provided by user
-from validators import ValidationFailure # -
+#import validators                        # Validating URLs provided by user
+#from validators import ValidationFailure # -
 import time                              # For providing the user with time spent and for testing
 
 
@@ -115,6 +115,18 @@ count = 0
 fant_moteplan = 0
 fant_kommunestyret = 0
 
+ugov = kommuner
+
+for i in kommuner:
+    new_url = url+i
+    downloaded_page = requests.get(new_url)
+    if downloaded_page.status_code == 200:
+        ugov.remove(i)
+        print(i)
+        count+=1
+print(ugov)
+print(count)
+
 # INNSYN
 for i in kommuner_utenGov:
     new_url = "https://www." + i + url_innsyn
@@ -162,14 +174,14 @@ print(fant_kommunestyret)
 
 
 # 360 GOV
-""""
+
 for i in kommuner:
     new_url = url+i
     downloaded_page = requests.get(new_url)
     if downloaded_page.status_code == 200:
         kommuner_utenGov.remove(i)
 print(kommuner_utenGov)
-"""
+print(len(kommuner_utenGov))
 
 
 
