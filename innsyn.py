@@ -116,37 +116,39 @@ def klikk_pdf(text):
         return 0
 
 
-def finn_motekalender(page):
+def pre_møtekalender(page,word1,word2):
+    card = f"{word1}|{word2}"
+    soup_page = BeautifulSoup(page.text, features="html.parser")
+    mote = soup_page.find('a', href=re.compile(card))
+    return mote
+
+def finn_møtekalender(page):
     soup_page = BeautifulSoup(page.text, features="html.parser")
     motekalender = soup_page.find('a', href=re.compile("Møteplan|Moteplan|moteplan|møteplan"
-                                                       "|Møtekalender|Motekalender|møtekalender|motekalender"))
+                                                  "|Møtekalender|Motekalender|møtekalender|motekalender"))
+    return motekalender
+
+def møtekalender_sjekk(page,word1,word2):
+    mote = pre_møtekalender(page, word1, word2)
+    motekalender = False
+    if mote:
+        href = str(mote.get('href'))
+        if not href.startswith("http"):
+            href = new_url + href
+        try:
+            new_page = requests.get(href)
+            motekalender = finn_møtekalender(new_page)
+        except Exception:
+            pass
+
+    return motekalender
+
+def møtekalender(page):
+    motekalender = finn_møtekalender(page)
     if not motekalender:
-        mote = soup_page.find('a', href=re.compile("Møte|Mote|mote|møte"))
-        if mote:
-            href = str(mote.get('href'))
-            if not href.startswith("http"):
-                href = new_url + href
-            try:
-                page = requests.get(href)
-                soup_mote = BeautifulSoup(page.text, features="html.parser")
-                motekalender = soup_mote.find('a', href=re.compile("Møteplan|Moteplan|moteplan|møteplan"
-                                                                   "|Møtekalender|Motekalender|møtekalender|motekalender"))
-            except Exception:
-                pass
+        motekalender = møtekalender_sjekk(page, "mote", "møte")
     if not motekalender:
-        motekalender = soup_page.find('a', text=re.compile("Møteplan|Moteplan|moteplan|møteplan"
-                                                           "|Møtekalender|Motekalender|møtekalender|motekalender"))
-        if motekalender:
-            href = str(motekalender.get('href'))
-            if not href.startswith("http"):
-                href = new_url + href
-            try:
-                page = requests.get(href)
-                soup_mote = BeautifulSoup(page.text, features="html.parser")
-                motekalender = soup_mote.find('a', href=re.compile("Møteplan|Moteplan|moteplan|møteplan"
-                                                                   "|Møtekalender|Motekalender|møtekalender|motekalender"))
-            except Exception:
-                pass
+        motekalender = møtekalender_sjekk(page, "bl4nk", "politisk-kalender")
     return motekalender
 
 
@@ -158,7 +160,7 @@ for i in kommuner_utenGov:
         page = requests.get(new_url)
     except Exception:
         continue
-    motekalender = finn_motekalender(page)
+    motekalender = møtekalender(page)
     if motekalender:
         href = str(motekalender.get('href'))
         if not href.startswith("http"):
